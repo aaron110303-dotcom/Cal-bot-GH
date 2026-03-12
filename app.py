@@ -108,9 +108,8 @@ def sms_reply():
     return "", 204
 
 
-@app.route("/oauth/callback")
-def oauth_callback():
-    flow = Flow.from_client_config(
+def make_flow():
+    return Flow.from_client_config(
         {
             "web": {
                 "client_id": GOOGLE_CLIENT_ID,
@@ -123,7 +122,14 @@ def oauth_callback():
         scopes=SCOPES,
         redirect_uri=f"{BASE_URL}/oauth/callback",
     )
-    flow.fetch_token(authorization_response=request.url)
+
+
+@app.route("/oauth/callback")
+def oauth_callback():
+    flow = make_flow()
+    flow.fetch_token(
+        code=request.args.get("code"),
+    )
     creds = flow.credentials
 
     with open(TOKEN_FILE, "w") as f:
@@ -134,20 +140,12 @@ def oauth_callback():
 
 @app.route("/auth")
 def auth():
-    flow = Flow.from_client_config(
-        {
-            "web": {
-                "client_id": GOOGLE_CLIENT_ID,
-                "client_secret": GOOGLE_CLIENT_SECRET,
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "token_uri": "https://oauth2.googleapis.com/token",
-                "redirect_uris": [f"{BASE_URL}/oauth/callback"],
-            }
-        },
-        scopes=SCOPES,
-        redirect_uri=f"{BASE_URL}/oauth/callback",
+    flow = make_flow()
+    auth_url, state = flow.authorization_url(
+        prompt="consent",
+        access_type="offline",
     )
-    auth_url, _ = flow.authorization_url(prompt="consent")
+    session["oauth_state"] = state
     return redirect(auth_url)
 
 
